@@ -35,17 +35,39 @@ async def get_document_texts_by_type(document_type: str):
   Returns a list of document_text strings.
   """
   url = f"{SUPABASE_REST_URL}/document?document_type=ilike.{document_type}&select=document_text"
-  #print(f"[Supabase Debug] Fetching document_texts for type: {document_type} from: {url}")
+  # print(f"[Supabase Debug] Fetching document_texts for type: {document_type} from: {url}")
   async with aiohttp.ClientSession() as session:
     async with session.get(url, headers=SUPABASE_HEADERS) as resp:
-      #print(f"[Supabase Debug] Response status: {resp.status}")
+      # print(f"[Supabase Debug] Response status: {resp.status}")
       if resp.status == 200:
         data = await resp.json()
-        #print(f"[Supabase Debug] Response data: {data}")
+        # print(f"[Supabase Debug] Response data: {data}")
         return [row["document_text"] for row in data if "document_text" in row and row["document_text"]]
       else:
         text = await resp.text()
-        #print(f"[Supabase Debug] Error response: {text}")
+        # print(f"[Supabase Debug] Error response: {text}")
+        return []
+
+async def get_automation_framework_files():
+  """
+  Fetch all documents from 'document' table where document_type is 'Automation Framework'.
+  Returns a list of dicts with 'document_url' and 'document_text'.
+  """
+  url = f"{SUPABASE_REST_URL}/document?document_type=eq.Automation Framework&select=document_url,document_text"
+  # print(f"[Supabase Debug] Fetching Automation Framework files from: {url}")
+  async with aiohttp.ClientSession() as session:
+    async with session.get(url, headers=SUPABASE_HEADERS) as resp:
+      # print(f"[Supabase Debug] Response status: {resp.status}")
+      if resp.status == 200:
+        data = await resp.json()
+        # print(f"[Supabase Debug] Response data: {data}")
+        return [
+          {"document_url": row.get("document_url", ""), "document_text": row.get("document_text", "")}
+          for row in data if row.get("document_text")
+        ]
+      else:
+        text = await resp.text()
+        # print(f"[Supabase Debug] Error response: {text}")
         return []
 
 async def get_document_types() -> List[str]:
