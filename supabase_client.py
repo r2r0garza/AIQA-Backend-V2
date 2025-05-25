@@ -29,13 +29,22 @@ AGENT_TEMPLATE_MAP = {
   "test-data-creator": "Test Data Generator Template"
 }
 
-async def get_document_texts_by_type(document_type: str):
+async def get_document_texts_by_type(document_type: str, team: Optional[str] = None):
   """
   Fetch all document_texts from 'document' table where document_type matches (case-insensitive).
+  If team is provided, fetch where team is null OR ilike team.
   Returns a list of document_text strings.
   """
-  url = f"{SUPABASE_REST_URL}/document?document_type=ilike.{document_type}&select=document_text"
-  # print(f"[Supabase Debug] Fetching document_texts for type: {document_type} from: {url}")
+  if team:
+    url = (
+      f"{SUPABASE_REST_URL}/document?"
+      f"document_type=ilike.{document_type}"
+      f"&select=document_text"
+      f"&or=(team.is.null,team.ilike.{team})"
+    )
+  else:
+    url = f"{SUPABASE_REST_URL}/document?document_type=ilike.{document_type}&select=document_text"
+  # print(f"[Supabase Debug] Fetching document_texts for type: {document_type} (team: {team}) from: {url}")
   async with aiohttp.ClientSession() as session:
     async with session.get(url, headers=SUPABASE_HEADERS) as resp:
       # print(f"[Supabase Debug] Response status: {resp.status}")

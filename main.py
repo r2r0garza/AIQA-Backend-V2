@@ -45,15 +45,15 @@ async def agent_handler(
     return JSONResponse({"error": "Invalid endpoint"}, status_code=404)
 
   # Debug: print incoming request details
-  print("==== Incoming Request ====")
-  print(f"Endpoint: /{agent_name}")
-  print(f"Message: {message}")
-  if files:
-    print("Files:", [file.filename for file in files])
-  else:
-    print("Files: None")
-  print(f"Team: {teamName}")
-  print("=========================")
+  # print("==== Incoming Request ====")
+  # print(f"Endpoint: /{agent_name}")
+  # print(f"Message: {message}")
+  # if files:
+  #   print("Files:", [file.filename for file in files])
+  # else:
+  #   print("Files: None")
+  # print(f"Team: {teamName}")
+  # print("=========================")
 
   # Save and process files
   parsed_file_data = ""
@@ -192,7 +192,7 @@ async def agent_handler(
           # Fetch document_texts for each filtered_doc_type and build additional_context
           additional_context_blocks = []
           for doc_type in filtered_doc_types:
-            doc_texts = await get_document_texts_by_type(doc_type)
+            doc_texts = await get_document_texts_by_type(doc_type, team=teamName if teamName else None)
             for doc_text in doc_texts:
               additional_context_blocks.append(f"<additional_context>{doc_text}</additional_context>")
           additional_context_str = "\n".join(additional_context_blocks)
