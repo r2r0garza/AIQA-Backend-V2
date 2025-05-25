@@ -4,4 +4,3 @@ aiohttp
 python-dotenv
 aiofiles
 python-multipart
-supabase-py
