@@ -37,10 +37,22 @@ async def agent_handler(
   agent_name: str,
   request: Request,
   message: Optional[str] = Form(None),
-  files: Optional[List[UploadFile]] = File(None)
+  files: Optional[List[UploadFile]] = File(None),
+  teamName: Optional[str] = Form(None)
 ):
   if agent_name not in ENDPOINTS:
     return JSONResponse({"error": "Invalid endpoint"}, status_code=404)
+
+  # Debug: print incoming request details
+  print("==== Incoming Request ====")
+  print(f"Endpoint: /{agent_name}")
+  print(f"Message: {message}")
+  if files:
+    print("Files:", [file.filename for file in files])
+  else:
+    print("Files: None")
+  print(f"Team: {teamName}")
+  print("=========================")
 
   # Save and process files
   parsed_file_data = ""
