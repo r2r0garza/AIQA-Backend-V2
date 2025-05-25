@@ -29,6 +29,36 @@ def load_prompt(agent_name: str) -> str:
   with open(path, "r", encoding="utf-8") as f:
     return f.read()
 
+def chunk_text_by_token_limit(text: str, chunk_limit: int):
+  """
+  Splits the input text into chunks, each not exceeding the estimated token limit.
+  Token estimation: 1 token ≈ 4 characters.
+  Splits on paragraph boundaries (double newlines).
+  Returns a list of chunk strings.
+  """
+  import math
+  paragraphs = [p for p in text.split('\n\n') if p.strip()]
+  chunks = []
+  current = ""
+  token_count = 0
+
+  for para in paragraphs:
+    estimated_tokens = math.ceil(len(para) / 4)
+    if token_count + estimated_tokens > chunk_limit:
+      if current:
+        chunks.append(current.strip())
+      current = para
+      token_count = estimated_tokens
+    else:
+      if current:
+        current += "\n\n" + para
+      else:
+        current = para
+      token_count += estimated_tokens
+  if current:
+    chunks.append(current.strip())
+  return chunks
+
 async def send_to_mcp_router(agent_name: str, user_message: str, prompt: str):
   import aiohttp
 
