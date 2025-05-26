@@ -16,10 +16,17 @@ load_dotenv()
 
 app = FastAPI()
 
+cors_urls = os.getenv("CORS_URLS", "*")
+if cors_urls.strip() == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [url.strip() for url in cors_urls.split(",") if url.strip()]
+
+
 # Allow CORS for local frontend dev
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["*"],
+  allow_origins=allow_origins,
   allow_credentials=True,
   allow_methods=["*"],
   allow_headers=["*"],
