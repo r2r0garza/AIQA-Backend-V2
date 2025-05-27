@@ -65,7 +65,7 @@ async def agent_handler(
   # Save and process files
   parsed_file_data = ""
   if files:
-    parsed_file_data = await handle_file_upload(files, request)
+    parsed_file_data = await handle_file_upload(files, request, message)
 
   # Load agent system prompt
   prompt = load_prompt(agent_name)

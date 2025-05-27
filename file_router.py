@@ -14,7 +14,11 @@ def get_file_type(filename: str) -> str:
   else:
     return "other"
 
-async def handle_file_upload(files: List[UploadFile], request: Request) -> str:
+async def handle_file_upload(
+  files: List[UploadFile],
+  request: Request,
+  system_prompt: str = None
+) -> str:
   """
   Receives a list of UploadFile, sends each to the correct backend endpoint,
   and returns the concatenated parsed text.
@@ -28,14 +32,21 @@ async def handle_file_upload(files: List[UploadFile], request: Request) -> str:
       file_type = get_file_type(file.filename)
       if file_type == "xlsx":
         url = f"{backend_base}/xlsx-to-md"
+        form = aiohttp.FormData()
+        form.add_field("file", await file.read(), filename=file.filename, content_type=file.content_type)
       elif file_type == "image":
         url = f"{backend_base}/caption" if USE_CAPTIONS else f"{backend_base}/parse"
+        form = aiohttp.FormData()
+        if USE_CAPTIONS and "/caption" in url:
+          form.add_field("image", await file.read(), filename=file.filename, content_type=file.content_type)
+          if system_prompt is not None:
+            form.add_field("system_prompt", system_prompt)
+        else:
+          form.add_field("file", await file.read(), filename=file.filename, content_type=file.content_type)
       else:
         url = f"{backend_base}/parse"
-
-      # Prepare file for sending
-      form = aiohttp.FormData()
-      form.add_field("file", await file.read(), filename=file.filename, content_type=file.content_type)
+        form = aiohttp.FormData()
+        form.add_field("file", await file.read(), filename=file.filename, content_type=file.content_type)
 
       async with session.post(url, data=form) as resp:
         if resp.status == 200:
