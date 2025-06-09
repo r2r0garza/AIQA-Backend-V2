@@ -37,8 +37,135 @@ ENDPOINTS = [
   "acceptance-criteria-creator",
   "test-case-creator",
   "test-script-creator",
-  "test-data-creator"
+  "test-data-creator",
+  "test-script-analyzer"
 ]
+
+@app.post("/test-script-analyzer")
+async def test_script_analyzer(
+  request: Request,
+  message: Optional[str] = Form(None),
+  files: Optional[List[UploadFile]] = File(None),
+  teamName: Optional[str] = Form(None
+)):
+  # Save and process files
+  parsed_file_data = ""
+  if files:
+    parsed_file_data = await handle_file_upload(files, request, message)
+
+  # Step 1: Call test-script-creator agent with user input
+  from fastapi.testclient import TestClient
+  tsc_content = None
+  if files or parsed_file_data:
+    # Use internal TestClient to call the /test-script-creator endpoint with files and message
+    client = TestClient(app)
+    data = {}
+    if message:
+      data["message"] = message
+    if teamName:
+      data["teamName"] = teamName
+    file_tuples = []
+    if files:
+      for file in files:
+        file.file.seek(0)
+        file_tuples.append(("files", (file.filename, file.file.read(), file.content_type)))
+    response = client.post(
+      "/test-script-creator",
+      data=data,
+      files=file_tuples if file_tuples else None
+    )
+    if response.status_code == 200:
+      tsc_json = response.json()
+      tsc_content = tsc_json.get("content", "")
+    else:
+      tsc_content = f"[Error calling test-script-creator: {response.status_code}]"
+  else:
+    tsc_prompt = load_prompt("test-script-creator")
+    tsc_user_message = message or ""
+    chunking_limit_str = get_env_str("CHUNKING_LIMIT", "3000")
+    try:
+      chunking_limit = int(chunking_limit_str)
+    except Exception:
+      chunking_limit = 2000
+    tsc_user_message_chunks = chunk_text_by_token_limit(tsc_user_message, chunking_limit)
+    tsc_user_message = tsc_user_message_chunks[0] if tsc_user_message_chunks else tsc_user_message
+
+    tsc_response = await send_to_mcp_router(
+      agent_name="test-script-creator",
+      user_message=tsc_user_message,
+      prompt=tsc_prompt
+    )
+    if isinstance(tsc_response, dict):
+      if "choices" in tsc_response and isinstance(tsc_response["choices"], list):
+        first_choice = tsc_response["choices"][0] if tsc_response["choices"] else None
+        if first_choice and "message" in first_choice and "content" in first_choice["message"]:
+          tsc_content = first_choice["message"]["content"]
+      elif "message" in tsc_response and "content" in tsc_response["message"]:
+        tsc_content = tsc_response["message"]["content"]
+  if not tsc_content:
+    return JSONResponse({"error": "No content from test-script-creator", "raw": str(tsc_content)}, status_code=500)
+
+  # Step 2: Fetch the Automation Script Generator Template for <framework>
+  from supabase_client import get_template_for_agent, get_automation_framework_files
+  template_text = await get_template_for_agent("test-script-creator")
+  framework_block = f"<framework>{template_text}</framework>" if template_text else ""
+
+  # Step 3: Fetch Automation Framework files, filter for "step" in document_url
+  automation_files = await get_automation_framework_files()
+  step_blocks = []
+  for file in automation_files:
+    url = file.get("document_url", "")
+    doc_text = file.get("document_text", "")
+    if "step" in url.lower():
+      step_blocks.append(doc_text)
+  steps_block = "<steps>\n" + "\n\n".join(step_blocks) + "\n</steps>" if step_blocks else ""
+
+  # Step 4: Compose <code> block from test-script-creator's output
+  code_block = f"<code>{tsc_content}</code>"
+
+  # Step 5: Build the user message for the analyzer agent
+  user_message = f"{framework_block}\n{steps_block}\n{code_block}"
+  print(f"[DEBUG] USER MESSAGE {user_message}")
+  # Step 6: Load the system prompt for analyzer
+  analyzer_prompt = load_prompt("automated-script-analyzer")
+
+  # Step 7: Chunk user_message if needed
+  chunking_limit_str = get_env_str("CHUNKING_LIMIT", "3000")
+  try:
+    chunking_limit = int(chunking_limit_str)
+  except Exception:
+    chunking_limit = 2000
+  user_message_chunks = chunk_text_by_token_limit(user_message, chunking_limit)
+  user_message = user_message_chunks[0] if user_message_chunks else user_message
+
+  # Step 8: Send to MCP Router (analyzer)
+  try:
+    mcp_response = await send_to_mcp_router(
+      agent_name="test-script-analyzer",
+      user_message=user_message,
+      prompt=analyzer_prompt
+    )
+    # Extract only the content key's value from the message key
+    analyzer_content = None
+    if isinstance(mcp_response, dict):
+      if "choices" in mcp_response and isinstance(mcp_response["choices"], list):
+        first_choice = mcp_response["choices"][0] if mcp_response["choices"] else None
+        if first_choice and "message" in first_choice and "content" in first_choice["message"]:
+          analyzer_content = first_choice["message"]["content"]
+      elif "message" in mcp_response and "content" in mcp_response["message"]:
+        analyzer_content = mcp_response["message"]["content"]
+    if analyzer_content is not None:
+      combined = (
+        # "test-script-creator response\n\n"
+        f"{tsc_content}\n\n"
+        # "test-script-analyzer response\n\n"
+        f"{analyzer_content}"
+      )
+      return JSONResponse({"content": combined})
+    else:
+      return JSONResponse({"error": "No content found in MCP Router response", "raw": mcp_response}, status_code=500)
+  except Exception as e:
+    return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.post("/{agent_name}")
 async def agent_handler(

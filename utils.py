@@ -20,7 +20,8 @@ def load_prompt(agent_name: str) -> str:
     "acceptance-criteria-creator": "acceptance-criteria-creator.xml",
     "test-case-creator": "test-case-creator.xml",
     "test-script-creator": "automation-test-script-creator.xml",
-    "test-data-creator": "test-data-creator.xml"
+    "test-data-creator": "test-data-creator.xml",
+    "automated-script-analyzer": "automated-script-analyzer.xml"
   }
   filename = prompt_map.get(agent_name)
   if not filename:
